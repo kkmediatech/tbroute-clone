@@ -20,7 +20,7 @@
         <div id="turnstile-container"></div>
 
         <span slot="footer" class="dialog-footer">
-          <el-button type="primary" @click="goToDetails">Go to Details</el-button>
+          <el-button type="primary" :disabled="!isCaptchaSolved" @click="goToDetails">ยืนยัน</el-button>
         </span>
       </el-dialog>
     </div>
@@ -37,12 +37,14 @@
         ],
         dialogVisible: false,
         selectedRow: {},
+        turnstileWidgetId: null, // Store the Turnstile widget ID
+        isCaptchaSolved: false // Track if CAPTCHA is solved
       };
     },
     methods: {
       openDialog(row) {
-        this.selectedRow = row;
-        this.dialogVisible = true;
+        this.selectedRow = row; // Set the selected row data
+        this.dialogVisible = true; // Open the dialog
       },
       initTurnstile() {
         // Load Cloudflare Turnstile script dynamically
@@ -56,7 +58,10 @@
         script.onload = () => {
           if (window.turnstile) {
             this.turnstileWidgetId = window.turnstile.render('#turnstile-container', {
-              sitekey: '0x4AAAAAAA7SN9BgICU6k8R5' // Your Cloudflare Turnstile site key
+              sitekey: '0x4AAAAAAA7SN9BgICU6k8R5', // Your Cloudflare Turnstile site key
+              callback: (token) => {
+                this.isCaptchaSolved = true; // Enable the confirm button when CAPTCHA is solved
+              }
             });
           }
         };
@@ -66,11 +71,23 @@
         if (this.turnstileWidgetId && window.turnstile) {
           window.turnstile.remove(this.turnstileWidgetId);
           this.turnstileWidgetId = null;
+          this.isCaptchaSolved = false; // Reset CAPTCHA state when dialog is closed
         }
       },
       goToDetails() {
-        this.dialogVisible = false;
-        this.$router.push({ name: 'Details', params: { id: this.selectedRow.id } });
+        // Get the Turnstile response token
+        if (window.turnstile) {
+          const token = window.turnstile.getResponse(this.turnstileWidgetId);
+          if (token) {
+            alert(`Turnstile Token: ${token}`); // You can send this token to your server for verification
+            this.dialogVisible = false; // Close the dialog after submission
+            this.$router.push({ name: 'Details', params: { id: this.selectedRow.id } });
+          } else {
+            alert('Please complete the Turnstile challenge.');
+          }
+        }
+        // this.dialogVisible = false;
+        // this.$router.push({ name: 'Details', params: { id: this.selectedRow.id } });
       },
     },
   };
